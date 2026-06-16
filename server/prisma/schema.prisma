@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  patient
+  doctor
+  lab_tech
+  lab_admin
+  hospital_staff
+  admin
+  super_admin
+
+  @@map("user_role")
+}
+
+enum UserSource {
+  self_signup
+  hospital
+  lab
+  admin_created
+  imported
+
+  @@map("user_source")
+}
+
+enum UserStatus {
+  pending
+  active
+  inactive
+  blocked
+
+  @@map("user_status")
+}
+
+enum OtpPurpose {
+  signup
+  login
+
+  @@map("otp_purpose")
+}
+
+model User {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mobile            String     @unique @db.VarChar
+  email             String?    @unique @db.VarChar
+  fullName          String?    @map("full_name") @db.VarChar
+  role              UserRole   @default(patient)
+  source            UserSource
+  status            UserStatus
+  mobileVerifiedAt  DateTime?  @map("mobile_verified_at")
+  deletedAt         DateTime?  @map("deleted_at")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model OtpVerification {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mobile     String     @db.VarChar
+  otpHash    String     @map("otp_hash") @db.VarChar
+  purpose    OtpPurpose
+  expiresAt  DateTime   @map("expires_at")
+  attempts   Int        @default(0)
+  verifiedAt DateTime?  @map("verified_at")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  @@index([mobile])
+  @@map("otp_verifications")
+}
+
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @map("token_hash") @db.VarChar
+  deviceInfo String?   @map("device_info") @db.VarChar
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}

@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Clinical Clarity",
+    "slug": "clinical-clarity",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#002045",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.clinicalclarity.app"
+    },
+    "android": {
+      "package": "com.clinicalclarity.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#002045"
+      }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}
