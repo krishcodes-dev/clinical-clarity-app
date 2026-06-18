@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
+import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ProfileStackParamList } from "@/app/types";
 import { Screen } from "@/ui/Screen";
@@ -8,6 +9,8 @@ import { Icon } from "@/ui/Icon";
 import { PrimaryButton } from "@/ui/PrimaryButton";
 import { SecondaryButton } from "@/ui/SecondaryButton";
 import { colors } from "@/theme";
+import { authFetch } from "@/utils/api";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type Props = NativeStackScreenProps<ProfileStackParamList, "DeleteAccount">;
 
@@ -18,9 +21,45 @@ const CONSEQUENCES = [
   "Prescriptions and consultation summaries are deleted",
 ];
 
-/** Delete Account Confirmation - explicit, friction-by-design. */
 export function DeleteAccountScreen({ navigation }: Props) {
+  const clearSession = useAuthStore((s) => s.clearSession);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      const res = await authFetch("/users/me", { method: "DELETE" });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        Alert.alert("Error", body.message ?? "Could not delete account. Please try again.");
+        return;
+      }
+
+      clearSession();
+
+      // ProfileStack → Tab navigator → Root stack — reset to Auth.
+      navigation.getParent()?.getParent()?.dispatch(
+        CommonActions.reset({ index: 0, routes: [{ name: "Auth", params: { screen: "Login" } }] })
+      );
+    } catch {
+      Alert.alert("Network Error", "Unable to reach the server. Check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      "Delete Account",
+      "This is permanent. Your data will be erased after 30 days and cannot be recovered.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: handleDelete },
+      ]
+    );
+  };
 
   return (
     <Screen contentClassName="px-md pb-lg">
@@ -50,7 +89,7 @@ export function DeleteAccountScreen({ navigation }: Props) {
       <View className="flex-row items-start gap-xs bg-surface-container-low rounded-xl p-sm mt-sm">
         <Icon name="download" size={16} color={colors.secondary} />
         <Text className="flex-1 font-inter text-[12px] text-on-surface-variant">
-          Tip: export your full EHR from Privacy & Security before deleting -
+          Tip: export your full EHR from Privacy & Security before deleting —
           you may need these records for future care.
         </Text>
       </View>
@@ -74,10 +113,10 @@ export function DeleteAccountScreen({ navigation }: Props) {
 
       <View className="mt-md gap-sm">
         <PrimaryButton
-          label="Delete My Account"
+          label={loading ? "Deleting…" : "Delete My Account"}
           destructive
-          disabled={!acknowledged}
-          onPress={() => navigation.popToTop()}
+          disabled={!acknowledged || loading}
+          onPress={confirmDelete}
         />
         <SecondaryButton label="Keep My Account" onPress={() => navigation.goBack()} />
       </View>

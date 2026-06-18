@@ -1,17 +1,26 @@
 import * as smsService from "../src/services/sms.service";
 
-export function captureOtp() {
-  const spy = jest.spyOn(smsService, "sendSms").mockImplementation(async () => {});
+/**
+ * Stubs both SMS functions for integration tests:
+ *  - sendOtpSms  → no-op (prevents real HTTP calls)
+ *  - verifyOtpExternal → returns true only for the supplied test OTP
+ *
+ * Usage:
+ *   const { setOtp } = stubSms();
+ *   setOtp("123456");
+ *   // POST /auth/otp/verify with { otp: "123456" } will now succeed
+ */
+export function stubSms() {
+  let expectedOtp = "";
+
+  jest.spyOn(smsService, "sendOtpSms").mockImplementation(async () => {});
+  jest.spyOn(smsService, "verifyOtpExternal").mockImplementation(
+    async (_mobile, otp) => otp === expectedOtp
+  );
 
   return {
-    spy,
-    latest(): string {
-      const calls = spy.mock.calls;
-      const lastCall = calls[calls.length - 1];
-      if (!lastCall) {
-        throw new Error("sendSms was never called");
-      }
-      return lastCall[1];
+    setOtp(otp: string) {
+      expectedOtp = otp;
     },
   };
 }

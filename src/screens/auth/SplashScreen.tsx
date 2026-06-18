@@ -6,18 +6,23 @@ import { RootStackParamList } from "@/app/types";
 import { Icon } from "@/ui/Icon";
 import { colors } from "@/theme";
 import { BRAND } from "@/constants/copy";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Splash">;
 
-/** Brand splash - auto-advances to Login after 1.8s. */
 export function SplashScreen({ navigation }: Props) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
   useEffect(() => {
-    const t = setTimeout(
-      () => navigation.replace("Auth", { screen: "Login" }),
-      1800
-    );
+    const t = setTimeout(() => {
+      if (isAuthenticated) {
+        navigation.replace("Main", {} as any);
+      } else {
+        navigation.replace("Auth", { screen: "Login" });
+      }
+    }, 1800);
     return () => clearTimeout(t);
-  }, [navigation]);
+  }, [navigation, isAuthenticated]);
 
   return (
     <View className="flex-1 bg-primary items-center justify-center">

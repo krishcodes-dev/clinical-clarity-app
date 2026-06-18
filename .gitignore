@@ -48,6 +48,8 @@ coverage/
 
 # === AI tool configs (local-only) ===
 .claude/
+graphify-out/
+
 
 # === Documents ===
 *.md

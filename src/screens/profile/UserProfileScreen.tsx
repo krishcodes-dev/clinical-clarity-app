@@ -1,5 +1,6 @@
-import React from "react";
-import { Pressable, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, Pressable, Text, View } from "react-native";
+import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ProfileStackParamList } from "@/app/types";
 import { Screen } from "@/ui/Screen";
@@ -7,6 +8,9 @@ import { Icon } from "@/ui/Icon";
 import { BentoCard } from "@/ui/BentoCard";
 import { mockUser } from "@/features/auth/mocks";
 import { colors } from "@/theme";
+import { authFetch } from "@/utils/api";
+import { getRefreshToken } from "@/utils/tokenStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type Props = NativeStackScreenProps<ProfileStackParamList, "UserProfile">;
 
@@ -16,10 +20,45 @@ const MENU: { icon: string; label: string; sub: string; route: keyof ProfileStac
   { icon: "shield_lock", label: "Privacy & Security", sub: "Sharing, permissions, app lock", route: "PrivacySecurity" },
   { icon: "settings", label: "Settings", sub: "Language, units, appearance", route: "Settings" },
   { icon: "help", label: "Help & Support", sub: "FAQs, tickets, live chat", route: "HelpSupport" },
+  { icon: "delete_forever", label: "Delete Account", sub: "Permanently remove your data", route: "DeleteAccount" },
 ];
 
-/** User Profile - merged canonical version of the two prototype variants. */
+function navigateToAuth(navigation: Props["navigation"]) {
+  // ProfileStack → Tab navigator → Root stack — reset to Auth.
+  navigation.getParent()?.getParent()?.dispatch(
+    CommonActions.reset({ index: 0, routes: [{ name: "Auth", params: { screen: "Login" } }] })
+  );
+}
+
 export function UserProfileScreen({ navigation }: Props) {
+  const clearSession = useAuthStore((s) => s.clearSession);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      const refreshToken = await getRefreshToken();
+      if (refreshToken) {
+        await authFetch("/auth/logout", {
+          method: "POST",
+          body: JSON.stringify({ refreshToken }),
+        });
+      }
+    } catch {
+      // Network failure — still clear local session and navigate away.
+    } finally {
+      clearSession();
+      navigateToAuth(navigation);
+    }
+  };
+
+  const confirmLogout = () => {
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Log Out", style: "destructive", onPress: handleLogout },
+    ]);
+  };
+
   return (
     <Screen contentClassName="px-md pb-lg">
       <Text className="font-inter-bold text-headline-lg-mobile text-on-surface mt-sm mb-md">
@@ -96,10 +135,18 @@ export function UserProfileScreen({ navigation }: Props) {
             className="flex-row items-center gap-sm bg-surface-container-lowest border border-outline-variant rounded-2xl p-md mb-xs min-h-[64px]"
           >
             <View className="w-11 h-11 rounded-full bg-surface-container items-center justify-center">
-              <Icon name={m.icon} size={22} color={colors.primaryContainer} />
+              <Icon
+                name={m.icon}
+                size={22}
+                color={m.route === "DeleteAccount" ? colors.error : colors.primaryContainer}
+              />
             </View>
             <View className="flex-1">
-              <Text className="font-inter-semibold text-body-lg text-on-surface">{m.label}</Text>
+              <Text
+                className={`font-inter-semibold text-body-lg ${m.route === "DeleteAccount" ? "text-error" : "text-on-surface"}`}
+              >
+                {m.label}
+              </Text>
               <Text className="font-inter text-[12px] text-on-surface-variant">{m.sub}</Text>
             </View>
             <Icon name="chevron_right" size={22} color={colors.outline} />
@@ -110,11 +157,14 @@ export function UserProfileScreen({ navigation }: Props) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Log out"
+        disabled={loggingOut}
         className="flex-row items-center justify-center gap-xs mt-md min-h-[48px]"
-        onPress={() => {}}
+        onPress={confirmLogout}
       >
         <Icon name="logout" size={18} color={colors.error} />
-        <Text className="font-inter-semibold text-body-sm text-error">Log Out</Text>
+        <Text className="font-inter-semibold text-body-sm text-error">
+          {loggingOut ? "Logging out…" : "Log Out"}
+        </Text>
       </Pressable>
       <Text className="font-inter text-[11px] text-outline text-center mt-sm">
         Clinical Clarity v1.0.0

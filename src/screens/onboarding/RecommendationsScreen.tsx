@@ -34,10 +34,10 @@ const RECS = [
 /** Renders even with skipped steps (UX review §4.1). */
 export function RecommendationsScreen({ navigation }: Props) {
   const finish = () =>
-    navigation.dispatch(
+    navigation.getParent()?.dispatch(
       CommonActions.reset({
         index: 0,
-        routes: [{ name: "Main" as never }],
+        routes: [{ name: "Main" as never, params: {} }],
       })
     );
 

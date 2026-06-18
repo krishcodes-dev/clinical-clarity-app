@@ -1,21 +1,22 @@
 import request from "supertest";
 import { app } from "../src/app";
 import { prisma } from "../src/utils/prisma";
-import { captureOtp } from "./helpers";
+import { stubSms } from "./helpers";
 
 const MOBILE = "9876543210";
+const TEST_OTP = "123456";
 
 describe("POST /auth/otp/request + /auth/otp/verify", () => {
   it("1. new mobile -> request OTP -> verify -> creates patient/self_signup/active, returns tokens, isNewUser=true", async () => {
-    const otpCapture = captureOtp();
+    const { setOtp } = stubSms();
 
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
 
-    const otp = otpCapture.latest();
+    setOtp(TEST_OTP);
 
     const res = await request(app)
       .post("/auth/otp/verify")
-      .send({ mobile: MOBILE, otp })
+      .send({ mobile: MOBILE, otp: TEST_OTP })
       .expect(200);
 
     expect(res.body.accessToken).toBeDefined();
@@ -45,13 +46,14 @@ describe("POST /auth/otp/request + /auth/otp/verify", () => {
       },
     });
 
-    const otpCapture = captureOtp();
+    const { setOtp } = stubSms();
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    const otp = otpCapture.latest();
+
+    setOtp(TEST_OTP);
 
     const res = await request(app)
       .post("/auth/otp/verify")
-      .send({ mobile: MOBILE, otp })
+      .send({ mobile: MOBILE, otp: TEST_OTP })
       .expect(200);
 
     expect(res.body.user.isNewUser).toBe(false);
@@ -61,46 +63,53 @@ describe("POST /auth/otp/request + /auth/otp/verify", () => {
     expect(user?.mobileVerifiedAt).not.toBeNull();
   });
 
-  it("3. wrong OTP 5 times invalidates the OTP", async () => {
-    const otpCapture = captureOtp();
+  it("3. wrong OTP is rejected with 400", async () => {
+    // The external provider returns false for any OTP that doesn't match TEST_OTP.
+    const { setOtp } = stubSms();
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    const correctOtp = otpCapture.latest();
-    const wrongOtp = correctOtp === "000000" ? "111111" : "000000";
 
-    for (let i = 0; i < 5; i++) {
-      await request(app)
-        .post("/auth/otp/verify")
-        .send({ mobile: MOBILE, otp: wrongOtp })
-        .expect(400);
-    }
+    setOtp(TEST_OTP);
 
-    // Even the correct OTP should now be rejected since attempts are exhausted.
     await request(app)
       .post("/auth/otp/verify")
-      .send({ mobile: MOBILE, otp: correctOtp })
+      .send({ mobile: MOBILE, otp: "000000" })
       .expect(400);
   });
 
-  it("4. expired OTP is rejected", async () => {
-    const otpCapture = captureOtp();
+  it("4. requesting a new OTP expires the previous audit record", async () => {
+    const { setOtp } = stubSms();
+
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    const otp = otpCapture.latest();
 
-    await prisma.otpVerification.updateMany({
+    const first = await prisma.otpVerification.findFirst({
       where: { mobile: MOBILE },
-      data: { expiresAt: new Date(Date.now() - 1000) },
+      orderBy: { createdAt: "desc" },
     });
+    expect(first?.verifiedAt).toBeNull();
+    expect(first?.expiresAt.getTime()).toBeGreaterThan(Date.now());
 
-    await request(app).post("/auth/otp/verify").send({ mobile: MOBILE, otp }).expect(400);
+    // Second request should expire the first record.
+    await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
+
+    const firstRefreshed = await prisma.otpVerification.findUnique({
+      where: { id: first!.id },
+    });
+    expect(firstRefreshed?.expiresAt.getTime()).toBeLessThanOrEqual(Date.now());
+
+    // Verify still succeeds because the external provider is the authority on expiry.
+    setOtp(TEST_OTP);
+    await request(app)
+      .post("/auth/otp/verify")
+      .send({ mobile: MOBILE, otp: TEST_OTP })
+      .expect(200);
   });
 
-  it("5. 4th OTP request within 15 minutes returns 429", async () => {
-    const otpCapture = captureOtp();
-    await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
+  it("5. 8th OTP request within 15 minutes returns 429", async () => {
+    stubSms();
+    for (let i = 0; i < 7; i++) {
+      await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
+    }
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(429);
-    otpCapture.spy.mockRestore();
   });
 
   it("6. blocked user verify returns 403", async () => {
@@ -114,22 +123,26 @@ describe("POST /auth/otp/request + /auth/otp/verify", () => {
       },
     });
 
-    const otpCapture = captureOtp();
+    const { setOtp } = stubSms();
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    const otp = otpCapture.latest();
 
-    await request(app).post("/auth/otp/verify").send({ mobile: MOBILE, otp }).expect(403);
+    setOtp(TEST_OTP);
+
+    await request(app)
+      .post("/auth/otp/verify")
+      .send({ mobile: MOBILE, otp: TEST_OTP })
+      .expect(403);
   });
 });
 
 describe("POST /auth/token/refresh", () => {
   async function signUpAndLogin() {
-    const otpCapture = captureOtp();
+    const { setOtp } = stubSms();
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    const otp = otpCapture.latest();
+    setOtp(TEST_OTP);
     const res = await request(app)
       .post("/auth/otp/verify")
-      .send({ mobile: MOBILE, otp })
+      .send({ mobile: MOBILE, otp: TEST_OTP })
       .expect(200);
     return res.body as { accessToken: string; refreshToken: string };
   }
@@ -156,12 +169,12 @@ describe("POST /auth/token/refresh", () => {
 
 describe("POST /auth/logout", () => {
   it("revokes the refresh token", async () => {
-    const otpCapture = captureOtp();
+    const { setOtp } = stubSms();
     await request(app).post("/auth/otp/request").send({ mobile: MOBILE }).expect(200);
-    const otp = otpCapture.latest();
+    setOtp(TEST_OTP);
     const { body } = await request(app)
       .post("/auth/otp/verify")
-      .send({ mobile: MOBILE, otp })
+      .send({ mobile: MOBILE, otp: TEST_OTP })
       .expect(200);
 
     await request(app)
