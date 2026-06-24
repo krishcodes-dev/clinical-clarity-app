@@ -101,6 +101,15 @@ export type ProfileStackParamList = {
   DeleteAccount: undefined;
 };
 
+/** ---------- Doctor onboarding & verification ---------- */
+export type DoctorStackParamList = {
+  VerificationStatus: undefined;
+  ProfessionalInformation: undefined;
+  DocumentUpload: undefined;
+  ReviewAndDeclaration: undefined;
+  DoctorHomePlaceholder: undefined;
+};
+
 /** ---------- Tabs & root ---------- */
 export type MainTabParamList = {
   HomeTab: NavigatorScreenParams<HomeStackParamList>;
@@ -114,7 +123,13 @@ export type RootStackParamList = {
   Splash: undefined;
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
-  Main: NavigatorScreenParams<MainTabParamList>;
+  /**
+   * Single authenticated entry point. The component mounted here picks
+   * DoctorStack vs MainTabs based on `user.role` (see RootNavigator.tsx) -
+   * login screens (OTP/Google/Apple/Admin) just reset here, none of them
+   * need to know about roles.
+   */
+  Main: NavigatorScreenParams<MainTabParamList> | NavigatorScreenParams<DoctorStackParamList>;
   /** Global system states - overlay any route. */
   Offline: undefined;
   Maintenance: undefined;

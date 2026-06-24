@@ -60,3 +60,6 @@ graphify-out/
 # === Misc ===
 *.tmp
 *.bak
+.scripts/ 
+scripts/ 
+outputs/clinical-clarity-app/server/scripts

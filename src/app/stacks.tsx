@@ -4,6 +4,7 @@ import {
   AuthStackParamList,
   BookStackParamList,
   CareStackParamList,
+  DoctorStackParamList,
   HomeStackParamList,
   OnboardingStackParamList,
   ProfileStackParamList,
@@ -98,6 +99,13 @@ import { PrivacySecurityScreen } from "@/screens/profile/PrivacySecurityScreen";
 import { AppLockSetupScreen } from "@/screens/profile/AppLockSetupScreen";
 import { HelpSupportScreen } from "@/screens/profile/HelpSupportScreen";
 import { DeleteAccountScreen } from "@/screens/profile/DeleteAccountScreen";
+
+// Doctor onboarding
+import { VerificationStatusScreen } from "@/screens/doctorOnboarding/VerificationStatusScreen";
+import { ProfessionalInformationScreen } from "@/screens/doctorOnboarding/ProfessionalInformationScreen";
+import { DocumentUploadScreen } from "@/screens/doctorOnboarding/DocumentUploadScreen";
+import { ReviewAndDeclarationScreen } from "@/screens/doctorOnboarding/ReviewAndDeclarationScreen";
+import { DoctorHomePlaceholderScreen } from "@/screens/doctorOnboarding/DoctorHomePlaceholderScreen";
 
 const opts = { headerShown: false } as const;
 
@@ -229,5 +237,18 @@ export function ProfileStack() {
       <ProfNav.Screen name="HelpSupport" component={HelpSupportScreen} />
       <ProfNav.Screen name="DeleteAccount" component={DeleteAccountScreen} />
     </ProfNav.Navigator>
+  );
+}
+
+const DoctorNav = createNativeStackNavigator<DoctorStackParamList>();
+export function DoctorStack() {
+  return (
+    <DoctorNav.Navigator screenOptions={opts}>
+      <DoctorNav.Screen name="VerificationStatus" component={VerificationStatusScreen} />
+      <DoctorNav.Screen name="ProfessionalInformation" component={ProfessionalInformationScreen} />
+      <DoctorNav.Screen name="DocumentUpload" component={DocumentUploadScreen} />
+      <DoctorNav.Screen name="ReviewAndDeclaration" component={ReviewAndDeclarationScreen} />
+      <DoctorNav.Screen name="DoctorHomePlaceholder" component={DoctorHomePlaceholderScreen} />
+    </DoctorNav.Navigator>
   );
 }
